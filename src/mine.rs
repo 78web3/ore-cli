@@ -45,11 +45,18 @@ impl Miner {
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
             // Run drillx
+            let config = get_config(&self.rpc_client).await;
+
+            let mut min_difficulty = args.min_difficulty as u32;
+            if min_difficulty == 0 {
+                min_difficulty = config.min_difficulty as u32;
+            }
+
             let solution = Self::find_hash_par(
                 proof,
                 cutoff_time,
                 args.threads,
-                config.min_difficulty as u32,
+                min_difficulty,
             )
             .await;
 
