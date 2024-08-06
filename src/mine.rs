@@ -94,9 +94,12 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
 
+        let found = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+
         let handles: Vec<_> = (0..threads)
             .map(|i| {
-        
+                let found = found.clone();
                 std::thread::spawn({
                     let core_id = i as usize;
                     let core_id = CoreId { id: core_id};
@@ -117,6 +120,12 @@ impl Miner {
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
                         loop {
+
+                            if found.load(std::sync::atomic::Ordering::Acquire) {
+                                println!("other thread found a solution, stopping mining thread {}", i);
+                                break;
+                            }
+
                             // Create hash
                             if let Ok(hx) = drillx::hash_with_memory(
                                 &mut memory,
@@ -135,6 +144,8 @@ impl Miner {
                             if timer.elapsed().as_secs().ge(&cutoff_time) {
                                 if best_difficulty.gt(&min_difficulty) {
                                     // Mine until min difficulty has been met
+                                    println!("found a solution, stopping mining thread {}", i);
+                                    found.store(true, std::sync::atomic::Ordering::Release);
                                     break;
                                 }
                             } else if i == 0 {
