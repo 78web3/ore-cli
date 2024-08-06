@@ -44,6 +44,8 @@ impl Miner {
             // Calc cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
+            println!("Mining for {} seconds", cutoff_time);
+
             // Run drillx
             let config = get_config(&self.rpc_client).await;
 
@@ -51,6 +53,8 @@ impl Miner {
             if min_difficulty == 0 {
                 min_difficulty = config.min_difficulty as u32;
             }
+
+            println!("Min difficulty: {}", min_difficulty);
 
             let solution = Self::find_hash_par(
                 proof,
@@ -117,6 +121,7 @@ impl Miner {
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
+                                println!("nonce({}): best_difficulty({})", nonce, best_difficulty);
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
                                     if best_difficulty.ge(&min_difficulty) {
                                         // Mine until min difficulty has been met
