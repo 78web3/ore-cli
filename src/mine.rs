@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use colored::*;
+use core_affinity::CoreId;
 use drillx::{
     equix::{self},
     Hash, Solution,
@@ -93,22 +94,17 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
 
-        let core_ids = core_affinity::get_core_ids().unwrap();
         let handles: Vec<_> = (0..threads)
             .map(|i| {
-
-                let index = i % core_ids.len() as u64;
-                let cpu_number = core_ids.get(index as usize).map(|core_id|core_id.clone());
-
+        
                 std::thread::spawn({
-
-                    if let Some(core_id) = cpu_number {
-                        println!("binding to cpu: {:?}", core_id);
-                        let binding_success = core_affinity::set_for_current(core_id);
-                        if !binding_success {
-                            println!("Failed to bind to CPU {}", i);
-                        }
-                    };
+                    let core_id = i as usize;
+                    let core_id = CoreId { id: core_id};
+                    println!("binding to cpu: {:?}", core_id);
+                    let binding_success = core_affinity::set_for_current(core_id);
+                    if !binding_success {
+                        println!("Failed to bind to CPU {}", i);
+                    }
 
 
                     let proof = proof.clone();
@@ -137,7 +133,6 @@ impl Miner {
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
-                                println!("nonce({}): best_difficulty({})", nonce, best_difficulty);
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
                                     if best_difficulty.ge(&min_difficulty) {
                                         // Mine until min difficulty has been met
