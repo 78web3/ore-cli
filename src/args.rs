@@ -75,7 +75,7 @@ pub struct MineArgs {
         help = "The number seconds before the deadline to stop mining and start submitting",
         default_value = "5"
     )]
-    pub buffer_time: u64,
+    pub buffer_time: i64,
 
     #[arg(
         long,

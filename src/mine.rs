@@ -187,12 +187,12 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, proof: Proof, buffer_time: u64) -> u64 {
+    async fn get_cutoff(&self, proof: Proof, buffer_time: i64) -> u64 {
         let clock = get_clock(&self.rpc_client).await;
         proof
             .last_hash_at
             .saturating_add(60)
-            .saturating_sub(buffer_time as i64)
+            .saturating_sub(buffer_time)
             .saturating_sub(clock.unix_timestamp)
             .max(0) as u64
     }
