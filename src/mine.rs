@@ -131,19 +131,17 @@ impl Miner {
                                 }
                             }
 
-                            // Exit if time has elapsed
-                            if nonce % 100 == 0 {
-                                if timer.elapsed().as_secs().ge(&cutoff_time) {
-                                    if best_difficulty.ge(&min_difficulty) {
-                                        // Mine until min difficulty has been met
-                                        break;
-                                    }
-                                } else if i == 0 {
-                                    progress_bar.set_message(format!(
-                                        "Mining... ({} sec remaining)",
-                                        cutoff_time.saturating_sub(timer.elapsed().as_secs()),
-                                    ));
+               
+                            if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                if best_difficulty.gt(&min_difficulty) {
+                                    // Mine until min difficulty has been met
+                                    break;
                                 }
+                            } else if i == 0 {
+                                progress_bar.set_message(format!(
+                                    "Mining... ({} sec remaining)",
+                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
+                                ));
                             }
 
                             // Increment nonce
