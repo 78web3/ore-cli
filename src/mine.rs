@@ -122,7 +122,7 @@ impl Miner {
                         loop {
 
                             if found.load(std::sync::atomic::Ordering::Acquire) {
-                                println!("other thread found a solution, stopping mining thread {}", i);
+                                println!("other thread found a solution, stopping mining thread {}. current thread the best difficulty {}", i, best_difficulty );
                                 break;
                             }
 
@@ -140,6 +140,14 @@ impl Miner {
                                 }
                             }
 
+
+                            if i == 0 {
+                                progress_bar.set_message(format!(
+                                    "Mining... ({} sec remaining)",
+                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
+                                ));
+                            }
+
                
                             if timer.elapsed().as_secs().ge(&cutoff_time) {
                                 if best_difficulty.gt(&min_difficulty) {
@@ -148,11 +156,6 @@ impl Miner {
                                     found.store(true, std::sync::atomic::Ordering::Release);
                                     break;
                                 }
-                            } else if i == 0 {
-                                progress_bar.set_message(format!(
-                                    "Mining... ({} sec remaining)",
-                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
-                                ));
                             }
 
                             // Increment nonce
