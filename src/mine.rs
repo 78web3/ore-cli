@@ -92,18 +92,24 @@ impl Miner {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
+
+        let core_ids = core_affinity::get_core_ids().unwrap();
         let handles: Vec<_> = (0..threads)
             .map(|i| {
+
+                let index = i % core_ids.len() as u64;
+                let cpu_number = core_ids.get(index as usize).map(|core_id|core_id.clone());
+
                 std::thread::spawn({
 
-                    println!("current cpu number: {}", i);
+                    if let Some(core_id) = cpu_number {
+                        println!("binding to cpu: {:?}", core_id);
+                        let binding_success = core_affinity::set_for_current(core_id);
+                        if !binding_success {
+                            println!("Failed to bind to CPU {}", i);
+                        }
+                    };
 
-                    let core_id = core_affinity::CoreId { id: i as usize };
-
-                    let binding_success = core_affinity::set_for_current(core_id);
-                    if !binding_success {
-                        println!("Failed to bind to CPU {}", i);
-                    }
 
                     let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
