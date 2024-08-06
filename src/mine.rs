@@ -95,6 +95,16 @@ impl Miner {
         let handles: Vec<_> = (0..threads)
             .map(|i| {
                 std::thread::spawn({
+
+                    println!("current cpu number: {}", i);
+
+                    let core_id = core_affinity::CoreId { id: i as usize };
+
+                    let binding_success = core_affinity::set_for_current(core_id);
+                    if !binding_success {
+                        println!("Failed to bind to CPU {}", i);
+                    }
+
                     let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
                     let mut memory = equix::SolverMemory::new();
