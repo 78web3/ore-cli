@@ -1404,6 +1404,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "drillx-gpu"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "cc",
+ "equix",
+ "solana-program",
+ "strum",
+]
+
+[[package]]
 name = "dynasm"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2783,6 +2794,7 @@ dependencies = [
  "colored",
  "core_affinity",
  "drillx",
+ "drillx-gpu",
  "futures",
  "num_cpus",
  "ore-api",

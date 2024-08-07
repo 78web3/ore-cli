@@ -22,6 +22,13 @@ use crate::{
     Miner,
 };
 
+
+const INDEX_SPACE: usize = 65536;
+
+fn hashspace_size() -> usize {
+    unsafe { drillx_gpu::BATCH_SIZE as usize * INDEX_SPACE }
+}
+
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
         // Register, if needed.
@@ -84,6 +91,7 @@ impl Miner {
         }
     }
 
+
     async fn find_hash_par(
         proof: Proof,
         cutoff_time: u64,
@@ -94,12 +102,32 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
 
-        let found = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
+        // test gpu
+        let nonce = [0; 8];
+        let mut hashes = vec![0u64; hashspace_size()];
+        
+        unsafe {
+            drillx_gpu::hash(proof.challenge.as_ptr(), nonce.as_ptr(), hashes.as_mut_ptr() as *mut u64);
+        }
+
+        let challenge = Arc::new(proof.challenge);
+        let hashes = Arc::new(hashes);
+        let nonce = u64::from_le_bytes(nonce);
+
+        println!("nonce: {}", nonce);
+
+        let chunk_size = unsafe {
+            drillx_gpu::BATCH_SIZE as usize / threads as usize   
+        };
+
+        println!("chunk_size: {}", chunk_size);
 
         let handles: Vec<_> = (0..threads)
             .map(|i| {
-                let found = found.clone();
+                let challenge = challenge.clone();
+                let hashes = hashes.clone();
+
                 std::thread::spawn({
                     let core_id = i as usize;
                     let core_id = CoreId { id: core_id};
@@ -110,73 +138,62 @@ impl Miner {
                     }
 
 
-                    let proof = proof.clone();
-                    let progress_bar = progress_bar.clone();
-                    let mut memory = equix::SolverMemory::new();
                     move || {
-                        let timer = Instant::now();
-                        let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(i);
-                        let mut best_nonce = nonce;
+                        let mut best_nonce = 0;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
-                        loop {
 
-                            if found.load(std::sync::atomic::Ordering::Acquire) {
-                                let msg = format!(
-                                    "Best hash: {} (difficulty: {}) (nonce: {})",
-                                    bs58::encode(best_hash.h).into_string(),
-                                    best_difficulty,
-                                    best_nonce
-                                );
-                                println!("other thread found a solution, stopping mining thread {}.  {}", i, msg );
-                                break;
+                        let start = i * chunk_size as u64;
+                        let end = if i == threads - 1 {
+                            unsafe{ drillx_gpu::BATCH_SIZE as u64}
+                        } else {
+                            start + chunk_size as u64
+                        };
+
+
+                        for idx in start..end {
+                        let mut digest = [0u8; 16];
+                        let mut sols = [0u8; 4];
+                        let solution = unsafe {
+                            let batch_start = hashes.as_ptr().add((i * INDEX_SPACE as u64) as usize);
+                            drillx_gpu::solve_all_stages(batch_start,  digest.as_mut_ptr(), sols.as_mut_ptr() as *mut u32);
+                            if u32::from_le_bytes(sols).gt(&0) {
+            
+                                Some(Solution::new(digest, (nonce + idx as u64).to_le_bytes()))
+
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(solution) = solution {
+                            let is_valid = solution.is_valid(&challenge);
+                            if !is_valid {
+                                println!("Invalid solution");
+                                continue;
                             }
 
-                            // Create hash
-                            if let Ok(hx) = drillx::hash_with_memory(
-                                &mut memory,
-                                &proof.challenge,
-                                &nonce.to_le_bytes(),
-                            ) {
-                                let difficulty = hx.difficulty();
-                                if difficulty.gt(&best_difficulty) {
-                                    best_nonce = nonce;
-                                    best_difficulty = difficulty;
-                                    best_hash = hx;
-                                }
+                            let hash = solution.to_hash();
+                            let difficulty = hash.difficulty();
+                            if difficulty > best_difficulty {
+                                best_difficulty = difficulty;
+                                best_nonce = idx as u64;
+                                best_hash = hash;
+
+                                println!("Best hash: {} (difficulty: {})", bs58::encode(best_hash.h).into_string(), best_difficulty);
                             }
-
-
-                            if i == 0 {
-                                progress_bar.set_message(format!(
-                                    "Mining... ({} sec remaining)",
-                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
-                                ));
-                            }
-
-               
-                            if timer.elapsed().as_secs().ge(&cutoff_time) {
-                                if best_difficulty.gt(&min_difficulty) {
-                                    // Mine until min difficulty has been met
-                                    println!("found a solution, stopping mining thread {}", i);
-                                    found.store(true, std::sync::atomic::Ordering::Release);
-                                    break;
-                                }
-                            }
-
-                            // Increment nonce
-                            nonce += 1;
                         }
-
-                        // Return the best nonce
-                        (best_nonce, best_difficulty, best_hash)
                     }
+
+                        (best_nonce, best_difficulty, best_hash)
+                    }                   
+
                 })
             })
             .collect();
 
         // Join handles and return best nonce
-        let mut best_nonce = 0;
+        let mut best_nonce = 0u64;
         let mut best_difficulty = 0;
         let mut best_hash = Hash::default();
         for h in handles {

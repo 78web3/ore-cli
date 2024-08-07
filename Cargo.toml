@@ -1,3 +1,7 @@
+[workspace]
+members = ["drillx-gpu"]
+
+
 [package]
 name = "ore-cli"
 version = "1.1.1"
@@ -9,6 +13,8 @@ homepage = "https://ore.supply"
 repository = "https://github.com/regolith-labs/ore-cli"
 readme = "./README.md"
 keywords = ["solana", "crypto", "mining"]
+
+
 
 [[bin]]
 name = "ore"
@@ -28,6 +34,7 @@ chrono = "0.4.38"
 clap = { version = "4.4.12", features = ["derive"] }
 colored = "2.0"
 drillx = "2.0.0"
+drillx-gpu = { path = "./drillx-gpu", features = ["cuda"] }
 futures = "0.3.30"
 num_cpus = "1.16.0"
 ore-api = "2.1.0"
