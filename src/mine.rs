@@ -122,7 +122,13 @@ impl Miner {
                         loop {
 
                             if found.load(std::sync::atomic::Ordering::Acquire) {
-                                println!("other thread found a solution, stopping mining thread {}. current thread the best difficulty {}", i, best_difficulty );
+                                let msg = format!(
+                                    "Best hash: {} (difficulty: {}) (nonce: {})",
+                                    bs58::encode(best_hash.h).into_string(),
+                                    best_difficulty,
+                                    best_nonce
+                                );
+                                println!("other thread found a solution, stopping mining thread {}.  {}", i, msg );
                                 break;
                             }
 
